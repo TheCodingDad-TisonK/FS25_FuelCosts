@@ -24,6 +24,9 @@ FuelMasterHUDBridge.active = false   -- MasterHUD present and we registered
 -- The FC HUD draw body. Same calls the standalone FSBaseMission.draw hook makes,
 -- including the mission.isRunning guard (resolved from g_currentMission here).
 function FuelMasterHUDBridge.drawStack()
+    -- Suite hide: MasterHUD # key. No-op when MasterHUD absent.
+    local mh = (g_currentMission ~= nil and g_currentMission.masterHUD) or g_masterHUD
+    if mh ~= nil and mh.areHudsHidden ~= nil and mh:areHudsHidden() then return end
     local fcm = g_FuelCostsManager
     if fcm == nil then return end
     if g_currentMission == nil or not g_currentMission.isRunning then return end
