@@ -126,6 +126,10 @@ FSBaseMission.draw = Utils.appendedFunction(FSBaseMission.draw, function(mission
     -- When MasterHUD is present it owns the single draw loop (our draw was registered
     -- as a self-draw via the bridge); stand down so the HUD never draws twice.
     if FuelMasterHUDBridge ~= nil and FuelMasterHUDBridge.active then return end
+    if FuelMasterHUDBridge ~= nil then
+        FuelMasterHUDBridge.drawStack()
+        return
+    end
     if not mission.isRunning then return end
     if fcm and fcm.hud then
         fcm.hud:draw()
