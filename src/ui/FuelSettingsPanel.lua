@@ -116,7 +116,7 @@ local SETTINGS_SECTIONS = {
 local MULTI_OPTS = {
     difficulty      = {"Simple", "Realistic", "Hardcore"},
     priceVolatility = {"None", "Low", "Medium", "High"},
-    hudPosition     = {"Top Left", "Top Right", "Bot Left", "Bot Right"},
+    hudPosition     = {"Suite Home", "Top Right", "Bot Left", "Bot Right"},
 }
 
 local SETTING_LABELS = {

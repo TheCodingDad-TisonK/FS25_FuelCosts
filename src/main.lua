@@ -21,37 +21,37 @@ local modDirectory = FcModDirectory
 local modName      = FcModName
 
 -- -------------------------------------------------------
--- Phase 1 — Utilities & Config
+-- Phase 1 - Utilities & Config
 -- -------------------------------------------------------
 source(modDirectory .. "src/utils/Logger.lua")
 source(modDirectory .. "src/config/Constants.lua")
 source(modDirectory .. "src/config/SettingsSchema.lua")
 
 -- -------------------------------------------------------
--- Phase 2 — Settings
+-- Phase 2 - Settings
 -- -------------------------------------------------------
 source(modDirectory .. "src/settings/Settings.lua")
 source(modDirectory .. "src/settings/SettingsManager.lua")
 
 -- -------------------------------------------------------
--- Phase 3 — Core Systems
+-- Phase 3 - Core Systems
 -- -------------------------------------------------------
 source(modDirectory .. "src/FuelPriceEngine.lua")
 source(modDirectory .. "src/FuelHUD.lua")
 source(modDirectory .. "src/ui/FuelSettingsPanel.lua")
 
 -- -------------------------------------------------------
--- Phase 4 — Network
+-- Phase 4 - Network
 -- -------------------------------------------------------
 source(modDirectory .. "src/network/NetworkEvents.lua")
 
 -- -------------------------------------------------------
--- Phase 5 — Manager (depends on all of the above)
+-- Phase 5 - Manager (depends on all of the above)
 -- -------------------------------------------------------
 source(modDirectory .. "src/FuelCostsManager.lua")
 
 -- -------------------------------------------------------
--- Phase 6 — Bedrock bridges (optional, delegate-when-present)
+-- Phase 6 - Bedrock bridges (optional, delegate-when-present)
 -- -------------------------------------------------------
 source(modDirectory .. "src/integrations/FuelStateLedgerBridge.lua")
 source(modDirectory .. "src/integrations/FuelNetworkSyncBridge.lua")
@@ -175,7 +175,7 @@ if FSCareerMissionInfo and FSCareerMissionInfo.saveToXMLFile then
 end
 
 -- -------------------------------------------------------
--- Mouse event handler — settings panel eats input when open
+-- Mouse event handler - settings panel eats input when open
 -- -------------------------------------------------------
 -- Reload-safe (hot-reload law): the handler table is a module global so a
 -- re-source rebinds mouseEvent on the SAME registered table, and the manager is
@@ -207,7 +207,7 @@ end
 FuelLogger.info("Mouse routing bound (reload-safe, live-resolved manager)")
 
 -- -------------------------------------------------------
--- Input action registration — Shift+F opens settings panel
+-- Input action registration - Shift+F opens settings panel
 -- Hook PlayerInputComponent.registerActionEvents so our
 -- action is registered whenever the player spawns/respawns.
 -- -------------------------------------------------------
@@ -247,7 +247,7 @@ if PlayerInputComponent and PlayerInputComponent.registerActionEvents then
 end
 
 -- -------------------------------------------------------
--- Vehicle context — hook InputBinding.endActionEventsModification
+-- Vehicle context - hook InputBinding.endActionEventsModification
 -- (Vehicle.registerActionEvents is already copied to each instance
 --  at spawn time and can't be patched after vehicles exist.)
 -- -------------------------------------------------------

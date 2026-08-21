@@ -29,12 +29,23 @@ local NOTIF_X     = 0.390   -- centered-ish
 local NOTIF_Y     = 0.060
 local NOTIF_TS    = 0.014
 
+local function getBaseGameRenderer()
+    local hud = (g_currentMission ~= nil and g_currentMission.masterHUD) or g_masterHUD
+    return hud ~= nil and hud.renderer or nil
+end
+
+-- Factory home (Wizard 2026-08-21): the suite layout Wizard arranged in-game -
+-- first run and the "Suite Home" position preset both land the chip here.
+FuelHUD.FACTORY_X         = 0.638125
+FuelHUD.FACTORY_Y         = 0.925000
+FuelHUD.FACTORY_WIDTHMULT = 0.764062
+
 function FuelHUD.new(settings, priceEngine)
     local self = setmetatable({}, FuelHUD)
     self.settings    = settings
     self.priceEngine = priceEngine
-    self.posX        = 0.01
-    self.posY        = 0.90
+    self.posX        = FuelHUD.FACTORY_X
+    self.posY        = FuelHUD.FACTORY_Y
     self.overlay     = nil
     self.initialized = false
     self.isDragging  = false
@@ -42,25 +53,60 @@ function FuelHUD.new(settings, priceEngine)
     self.dragOffY    = 0
     self.flashQueue  = {}
     self.activeFlash = nil
-    -- BUILD 19:38 (Sam DESIGN 19:30): suite layout-edit membership - move + persist
-    -- only, NO resize this wave. Entered/exited by the MasterHUD edit listener the
-    -- bridge registers; drag via onMouseEvent below; layout persists to the
-    -- savegame like Income/RWE.
+    -- BUILD 19:38 (Sam DESIGN 19:30): suite layout-edit membership. Entered and
+    -- exited by the MasterHUD edit listener the bridge registers; drag via
+    -- onMouseEvent below; layout persists to the savegame like Income/RWE.
+    -- Wizard 2026-08-21 (overrides the earlier move-only ruling): the chip joins
+    -- the NPCFavor/Workplace resize vocabulary - corners = uniform scale,
+    -- left/right edges = width-only, both persisted with the position.
     self.editMode     = false
     self.layoutLoaded = false
     self.savedCamRotX = nil
     self.savedCamRotY = nil
     self.savedCamRotZ = nil
+
+    -- Scale + width state (NPCFavor/Workplace pattern)
+    self.scale              = 1.0
+    self.widthMult          = FuelHUD.FACTORY_WIDTHMULT
+    self.resizing           = false
+    self.resizeStartX       = 0
+    self.resizeStartY       = 0
+    self.resizeStartScale   = 1.0
+    self.edgeDragging       = nil   -- nil | "left" | "right"
+    self.edgeDragStartX     = 0
+    self.edgeDragStartWidth = 1.0
     return self
 end
 
+FuelHUD.MIN_SCALE          = 0.6
+FuelHUD.MAX_SCALE          = 1.6
+FuelHUD.MIN_WIDTH_MULT     = 0.7
+FuelHUD.MAX_WIDTH_MULT     = 2.5
+FuelHUD.RESIZE_HANDLE_SIZE = 0.006
+FuelHUD.EDGE_BAND_W        = 0.008
+FuelHUD.EDGE_SENS          = 3.0
+
+-- ONE width/height source; every consumer (draw, hit tests, chrome, anchors)
+-- reads these so scale and width drags reshape everything together.
+function FuelHUD:getW()
+    local C = FuelConstants.HUD
+    return C.WIDTH * (self.widthMult or 1.0) * (self.scale or 1.0)
+end
+
+function FuelHUD:getH()
+    local C = FuelConstants.HUD
+    return C.HEIGHT * (self.scale or 1.0)
+end
+
 -- =========================================================
--- BUILD 19:38: suite layout-edit (move + persist only)
+-- BUILD 19:38: suite layout-edit (+ Wizard 2026-08-21 scale/width)
 -- =========================================================
 
 function FuelHUD:enterEditMode()
-    self.editMode   = true
-    self.isDragging = false
+    self.editMode     = true
+    self.isDragging   = false
+    self.resizing     = false
+    self.edgeDragging = nil
     if g_inputBinding and g_inputBinding.setShowMouseCursor then
         g_inputBinding:setShowMouseCursor(true)
     end
@@ -77,12 +123,15 @@ function FuelHUD:enterEditMode()
 end
 
 function FuelHUD:exitEditMode()
-    self.editMode   = false
-    self.isDragging = false
+    self.editMode     = false
+    self.isDragging   = false
+    self.resizing     = false
+    self.edgeDragging = nil
     self.savedCamRotX, self.savedCamRotY, self.savedCamRotZ = nil, nil, nil
     if g_inputBinding and g_inputBinding.setShowMouseCursor then
         g_inputBinding:setShowMouseCursor(false)
     end
+    self:clampPosition()
     self:saveLayout()
 end
 
@@ -100,6 +149,8 @@ function FuelHUD:saveLayout()
     if xml then
         xml:setFloat("hudLayout.posX", self.posX)
         xml:setFloat("hudLayout.posY", self.posY)
+        xml:setFloat("hudLayout.scale", self.scale or 1.0)
+        xml:setFloat("hudLayout.widthMult", self.widthMult or 1.0)
         xml:save()
         xml:delete()
     end
@@ -110,37 +161,130 @@ function FuelHUD:loadLayout()
     if not path or not fileExists(path) then return end
     local xml = XMLFile.load("fc_hud", path)
     if xml then
-        self.posX = xml:getFloat("hudLayout.posX", self.posX)
-        self.posY = xml:getFloat("hudLayout.posY", self.posY)
+        self.posX      = xml:getFloat("hudLayout.posX", self.posX)
+        self.posY      = xml:getFloat("hudLayout.posY", self.posY)
+        self.scale     = math.max(FuelHUD.MIN_SCALE, math.min(FuelHUD.MAX_SCALE,
+                             xml:getFloat("hudLayout.scale", self.scale or 1.0)))
+        self.widthMult = math.max(FuelHUD.MIN_WIDTH_MULT, math.min(FuelHUD.MAX_WIDTH_MULT,
+                             xml:getFloat("hudLayout.widthMult", self.widthMult or 1.0)))
         xml:delete()
+        self:clampPosition()
     end
+end
+
+function FuelHUD:clampPosition()
+    local w, h = self:getW(), self:getH()
+    self.posX = math.max(0.0, math.min(math.max(0.0, 1.0 - w), self.posX))
+    self.posY = math.max(0.0, math.min(math.max(0.0, 1.0 - h), self.posY))
 end
 
 function FuelHUD:isPointerOverHUD(posX, posY)
-    local C = FuelConstants.HUD
-    return posX >= self.posX and posX <= self.posX + C.WIDTH
-       and posY >= self.posY and posY <= self.posY + C.HEIGHT
+    return posX >= self.posX and posX <= self.posX + self:getW()
+       and posY >= self.posY and posY <= self.posY + self:getH()
 end
 
---- Drag while in suite edit mode. Returns true when the event was consumed.
+function FuelHUD:getResizeHandleRects()
+    local w, h = self:getW(), self:getH()
+    local hs = FuelHUD.RESIZE_HANDLE_SIZE
+    return {
+        bl = {x = self.posX,          y = self.posY,          w = hs, h = hs},
+        br = {x = self.posX + w - hs, y = self.posY,          w = hs, h = hs},
+        tl = {x = self.posX,          y = self.posY + h - hs, w = hs, h = hs},
+        tr = {x = self.posX + w - hs, y = self.posY + h - hs, w = hs, h = hs},
+    }
+end
+
+function FuelHUD:hitTestCorner(posX, posY)
+    for key, rect in pairs(self:getResizeHandleRects()) do
+        if posX >= rect.x and posX <= rect.x + rect.w
+        and posY >= rect.y and posY <= rect.y + rect.h then
+            return key
+        end
+    end
+    return nil
+end
+
+function FuelHUD:hitTestEdge(posX, posY)
+    local w, h = self:getW(), self:getH()
+    local band = FuelHUD.EDGE_BAND_W
+    if posY >= self.posY and posY <= self.posY + h then
+        if posX >= self.posX - band / 2 and posX <= self.posX + band / 2 then return "left" end
+        if posX >= self.posX + w - band / 2 and posX <= self.posX + w + band / 2 then return "right" end
+    end
+    return nil
+end
+
+--- Drag / corner-scale / edge-width while in suite edit mode.
+--- Returns true when the event was consumed.
 function FuelHUD:onMouseEvent(posX, posY, isDown, isUp, button)
     if not self.editMode then return false end
-    if isDown and button == 1 and self:isPointerOverHUD(posX, posY) then
-        self.isDragging = true
-        self.dragOffX   = posX - self.posX
-        self.dragOffY   = posY - self.posY
-        return true
+
+    if isDown and button == 1 then
+        local corner = self:hitTestCorner(posX, posY)
+        local edge   = self:hitTestEdge(posX, posY)
+        if corner then
+            self.resizing         = true
+            self.isDragging       = false
+            self.edgeDragging     = nil
+            self.resizeStartX     = posX
+            self.resizeStartY     = posY
+            self.resizeStartScale = self.scale
+            return true
+        elseif edge then
+            self.edgeDragging       = edge
+            self.isDragging         = false
+            self.resizing           = false
+            self.edgeDragStartX     = posX
+            self.edgeDragStartWidth = self.widthMult
+            return true
+        elseif self:isPointerOverHUD(posX, posY) then
+            self.isDragging = true
+            self.resizing   = false
+            self.dragOffX   = posX - self.posX
+            self.dragOffY   = posY - self.posY
+            return true
+        end
     end
+
     if self.isDragging then
-        local C = FuelConstants.HUD
-        self.posX = math.max(0.0, math.min(1.0 - C.WIDTH,  posX - self.dragOffX))
-        self.posY = math.max(0.0, math.min(1.0 - C.HEIGHT, posY - self.dragOffY))
+        self.posX = math.max(0.0, math.min(1.0 - self:getW(), posX - self.dragOffX))
+        self.posY = math.max(0.0, math.min(1.0 - self:getH(), posY - self.dragOffY))
         if isUp and button == 1 then
             self.isDragging = false
             self:saveLayout()
         end
         return true
     end
+
+    if self.resizing then
+        local w, h = self:getW(), self:getH()
+        local cx = self.posX + w * 0.5
+        local cy = self.posY + h * 0.5
+        local startDist = math.sqrt((self.resizeStartX - cx)^2 + (self.resizeStartY - cy)^2)
+        local currDist  = math.sqrt((posX - cx)^2 + (posY - cy)^2)
+        local delta     = (currDist - startDist) * 2.5
+        self.scale = math.max(FuelHUD.MIN_SCALE, math.min(FuelHUD.MAX_SCALE, self.resizeStartScale + delta))
+        self:clampPosition()
+        if isUp and button == 1 then
+            self.resizing = false
+            self:saveLayout()
+        end
+        return true
+    end
+
+    if self.edgeDragging then
+        local dx = posX - self.edgeDragStartX
+        if self.edgeDragging == "left" then dx = -dx end
+        self.widthMult = math.max(FuelHUD.MIN_WIDTH_MULT, math.min(FuelHUD.MAX_WIDTH_MULT,
+            self.edgeDragStartWidth + dx * FuelHUD.EDGE_SENS))
+        self:clampPosition()
+        if isUp and button == 1 then
+            self.edgeDragging = nil
+            self:saveLayout()
+        end
+        return true
+    end
+
     return false
 end
 
@@ -155,17 +299,21 @@ function FuelHUD:init()
 end
 
 function FuelHUD:updatePosition()
-    local C = FuelConstants.HUD
+    local w, h = self:getW(), self:getH()
     local positions = {
-        topLeft     = { x = 0.01,       y = 1.0 - C.HEIGHT - 0.01 },
-        topRight    = { x = 1.0 - C.WIDTH - 0.01, y = 1.0 - C.HEIGHT - 0.01 },
-        bottomLeft  = { x = 0.01,       y = 0.01 },
-        bottomRight = { x = 1.0 - C.WIDTH - 0.01, y = 0.01 },
+        -- Wizard 2026-08-21: preset 1 is the factory suite home (the layout
+        -- Wizard arranged in-game), replacing the old topLeft anchor. The three
+        -- corner presets stay as player choices.
+        factory     = { x = FuelHUD.FACTORY_X,  y = FuelHUD.FACTORY_Y },
+        topRight    = { x = 1.0 - w - 0.01, y = 1.0 - h - 0.01 },
+        bottomLeft  = { x = 0.01,           y = 0.01 },
+        bottomRight = { x = 1.0 - w - 0.01, y = 0.01 },
     }
-    local anchor = FuelSettingsSchema.HUD_POSITION_MAP[self.settings.hudPosition] or "topLeft"
-    local pos = positions[anchor] or positions.topLeft
+    local anchor = FuelSettingsSchema.HUD_POSITION_MAP[self.settings.hudPosition] or "factory"
+    local pos = positions[anchor] or positions.factory
     self.posX = pos.x
     self.posY = pos.y
+    self:clampPosition()
 end
 
 function FuelHUD:draw()
@@ -188,38 +336,61 @@ function FuelHUD:draw()
     if (not self.settings.enabled or not self.settings.hudEnabled) and not self.editMode then return end
 
     local C      = FuelConstants.HUD
+    local s      = self.scale or 1.0
+    local w      = self:getW()
+    local h      = self:getH()
+    local pad    = C.PADDING * s
+    local fs     = C.FONT_SIZE * s
     local price  = self.priceEngine:getDisplayPrice()
     local status = self.priceEngine:getPriceStatus()
     local col    = COLOR[status] or COLOR.normal
 
-    -- Background
-    if self.overlay then
+    -- Prefer the shared three-piece panel used by the base-game feed-mixer and
+    -- implement HUDs; retain graph_pixel when MasterHUD is not installed.
+    local renderer = getBaseGameRenderer()
+    local usedNativePanel = renderer ~= nil and renderer.renderPanel ~= nil
+        and renderer:renderPanel(self.posX, self.posY, w, h, COLOR.bg[4])
+    if not usedNativePanel and self.overlay then
         setOverlayColor(self.overlay, COLOR.bg[1], COLOR.bg[2], COLOR.bg[3], COLOR.bg[4])
-        renderOverlay(self.overlay, self.posX, self.posY, C.WIDTH, C.HEIGHT)
+        renderOverlay(self.overlay, self.posX, self.posY, w, h)
     end
 
     -- BUILD 19:38: suite orange edit chrome (COLOR_EDIT_BORDER family) while the
     -- suite layout edit is on - pulsing border, same vocabulary as every panel.
+    -- Wizard 2026-08-21: + corner scale handles and left/right edge width handles
+    -- (NPCFavor/Workplace vocabulary).
     if self.editMode and self.overlay then
         local bw = 0.002
         setOverlayColor(self.overlay, 1.00, 0.60, 0.10, 0.90)
-        renderOverlay(self.overlay, self.posX, self.posY + C.HEIGHT - bw, C.WIDTH, bw)
-        renderOverlay(self.overlay, self.posX, self.posY, C.WIDTH, bw)
-        renderOverlay(self.overlay, self.posX, self.posY, bw, C.HEIGHT)
-        renderOverlay(self.overlay, self.posX + C.WIDTH - bw, self.posY, bw, C.HEIGHT)
+        renderOverlay(self.overlay, self.posX, self.posY + h - bw, w, bw)
+        renderOverlay(self.overlay, self.posX, self.posY, w, bw)
+        renderOverlay(self.overlay, self.posX, self.posY, bw, h)
+        renderOverlay(self.overlay, self.posX + w - bw, self.posY, bw, h)
+
+        for _, rect in pairs(self:getResizeHandleRects()) do
+            setOverlayColor(self.overlay, 1.00, 0.60, 0.10, self.resizing and 0.95 or 0.65)
+            renderOverlay(self.overlay, rect.x, rect.y, rect.w, rect.h)
+        end
+
+        local ehW   = 0.004
+        local inset = h * 0.20
+        setOverlayColor(self.overlay, 1.00, 0.60, 0.10, self.edgeDragging == "left" and 0.95 or 0.65)
+        renderOverlay(self.overlay, self.posX - ehW / 2, self.posY + inset, ehW, h - inset * 2)
+        setOverlayColor(self.overlay, 1.00, 0.60, 0.10, self.edgeDragging == "right" and 0.95 or 0.65)
+        renderOverlay(self.overlay, self.posX + w - ehW / 2, self.posY + inset, ehW, h - inset * 2)
     end
 
     -- Label
-    setTextColor(COLOR.label[1], COLOR.label[2], COLOR.label[3], COLOR.label[4])
+    setTextColor(1, 1, 1, 1)
     setTextAlignment(RenderText.ALIGN_LEFT)
-    setTextBold(false)
-    renderText(self.posX + C.PADDING, self.posY + C.HEIGHT * 0.60, C.FONT_SIZE * 0.75,
+    setTextBold(true)
+    renderText(self.posX + pad, self.posY + h * 0.60, fs * 0.75,
         g_i18n:getText("fc_hud_label") or "DIESEL")
 
     -- Price value
     setTextColor(col[1], col[2], col[3], col[4])
     setTextBold(true)
-    renderText(self.posX + C.PADDING, self.posY + C.HEIGHT * 0.15, C.FONT_SIZE,
+    renderText(self.posX + pad, self.posY + h * 0.15, fs,
         string.format("$%.4f/L", price))
 
     -- Trend indicator (ASCII — right-aligned in box)
@@ -229,7 +400,7 @@ function FuelHUD:draw()
     setTextColor(trendCol[1], trendCol[2], trendCol[3], trendCol[4])
     setTextBold(false)
     setTextAlignment(RenderText.ALIGN_RIGHT)
-    renderText(self.posX + C.WIDTH - C.PADDING, self.posY + C.HEIGHT * 0.15, C.FONT_SIZE * 0.70, trendText)
+    renderText(self.posX + w - pad, self.posY + h * 0.15, fs * 0.70, trendText)
     setTextAlignment(RenderText.ALIGN_LEFT)
 end
 
@@ -304,4 +475,9 @@ if g_currentMission ~= nil and g_currentMission.fuelCostsManager ~= nil and g_cu
             inst[k] = v
         end
     end
+    -- Fields new in the width wave that a pre-wave live instance lacks.
+    if inst.scale     == nil then inst.scale     = 1.0 end
+    if inst.widthMult == nil then inst.widthMult = 1.0 end
+    -- Delivery proof in log.txt (Wizard 2026-08-21).
+    print("[FuelCosts] FuelHUD hot-patched onto live instance")
 end

@@ -35,4 +35,6 @@ FuelSettingsSchema.DIFFICULTY_MAP = { "SIMPLE", "REALISTIC", "HARDCORE" }
 FuelSettingsSchema.VOLATILITY_MAP = { "NONE", "LOW", "MEDIUM", "HIGH" }
 
 -- hudPosition index → anchor
-FuelSettingsSchema.HUD_POSITION_MAP = { "topLeft", "topRight", "bottomLeft", "bottomRight" }
+-- Wizard 2026-08-21: index 1 is now the factory suite home (see FuelHUD.FACTORY_*),
+-- not the old topLeft corner. Indices 2-4 stay the corner presets.
+FuelSettingsSchema.HUD_POSITION_MAP = { "factory", "topRight", "bottomLeft", "bottomRight" }
