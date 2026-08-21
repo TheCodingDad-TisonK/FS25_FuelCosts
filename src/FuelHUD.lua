@@ -7,7 +7,10 @@
 -- =========================================================
 
 ---@class FuelHUD
-FuelHUD = {}
+-- BUILD 17:57 + ATTN 18:02 (Wizard hot-reload law, FS25-HotReload-Guide.md Part 1):
+-- reuse the existing class table on Ctrl+R reload so updated methods land on the
+-- table live metatables already reference, instead of orphaning it.
+FuelHUD = FuelHUD or {}
 FuelHUD.__index = FuelHUD
 
 local COLOR = {
@@ -39,7 +42,106 @@ function FuelHUD.new(settings, priceEngine)
     self.dragOffY    = 0
     self.flashQueue  = {}
     self.activeFlash = nil
+    -- BUILD 19:38 (Sam DESIGN 19:30): suite layout-edit membership - move + persist
+    -- only, NO resize this wave. Entered/exited by the MasterHUD edit listener the
+    -- bridge registers; drag via onMouseEvent below; layout persists to the
+    -- savegame like Income/RWE.
+    self.editMode     = false
+    self.layoutLoaded = false
+    self.savedCamRotX = nil
+    self.savedCamRotY = nil
+    self.savedCamRotZ = nil
     return self
+end
+
+-- =========================================================
+-- BUILD 19:38: suite layout-edit (move + persist only)
+-- =========================================================
+
+function FuelHUD:enterEditMode()
+    self.editMode   = true
+    self.isDragging = false
+    if g_inputBinding and g_inputBinding.setShowMouseCursor then
+        g_inputBinding:setShowMouseCursor(true)
+    end
+    -- Camera freeze on foot while dragging (Tax/Income pattern, guarded).
+    if getCamera and getRotation then
+        local ok, cam = pcall(getCamera)
+        if ok and cam and cam ~= 0 then
+            local ok2, rx, ry, rz = pcall(getRotation, cam)
+            if ok2 then
+                self.savedCamRotX, self.savedCamRotY, self.savedCamRotZ = rx, ry, rz
+            end
+        end
+    end
+end
+
+function FuelHUD:exitEditMode()
+    self.editMode   = false
+    self.isDragging = false
+    self.savedCamRotX, self.savedCamRotY, self.savedCamRotZ = nil, nil, nil
+    if g_inputBinding and g_inputBinding.setShowMouseCursor then
+        g_inputBinding:setShowMouseCursor(false)
+    end
+    self:saveLayout()
+end
+
+function FuelHUD:getLayoutPath()
+    if g_currentMission and g_currentMission.missionInfo
+    and g_currentMission.missionInfo.savegameDirectory then
+        return g_currentMission.missionInfo.savegameDirectory .. "/FS25_FuelCosts_hud.xml"
+    end
+end
+
+function FuelHUD:saveLayout()
+    local path = self:getLayoutPath()
+    if not path then return end
+    local xml = XMLFile.create("fc_hud", path, "hudLayout")
+    if xml then
+        xml:setFloat("hudLayout.posX", self.posX)
+        xml:setFloat("hudLayout.posY", self.posY)
+        xml:save()
+        xml:delete()
+    end
+end
+
+function FuelHUD:loadLayout()
+    local path = self:getLayoutPath()
+    if not path or not fileExists(path) then return end
+    local xml = XMLFile.load("fc_hud", path)
+    if xml then
+        self.posX = xml:getFloat("hudLayout.posX", self.posX)
+        self.posY = xml:getFloat("hudLayout.posY", self.posY)
+        xml:delete()
+    end
+end
+
+function FuelHUD:isPointerOverHUD(posX, posY)
+    local C = FuelConstants.HUD
+    return posX >= self.posX and posX <= self.posX + C.WIDTH
+       and posY >= self.posY and posY <= self.posY + C.HEIGHT
+end
+
+--- Drag while in suite edit mode. Returns true when the event was consumed.
+function FuelHUD:onMouseEvent(posX, posY, isDown, isUp, button)
+    if not self.editMode then return false end
+    if isDown and button == 1 and self:isPointerOverHUD(posX, posY) then
+        self.isDragging = true
+        self.dragOffX   = posX - self.posX
+        self.dragOffY   = posY - self.posY
+        return true
+    end
+    if self.isDragging then
+        local C = FuelConstants.HUD
+        self.posX = math.max(0.0, math.min(1.0 - C.WIDTH,  posX - self.dragOffX))
+        self.posY = math.max(0.0, math.min(1.0 - C.HEIGHT, posY - self.dragOffY))
+        if isUp and button == 1 then
+            self.isDragging = false
+            self:saveLayout()
+        end
+        return true
+    end
+    return false
 end
 
 function FuelHUD:init()
@@ -70,9 +172,20 @@ function FuelHUD:draw()
     if not self.initialized then return end
     if g_gui and (g_gui:getIsGuiVisible() or g_gui:getIsDialogVisible()) then return end
 
+    -- BUILD 19:38: a dragged layout from a previous session wins over the anchor
+    -- preset; loaded lazily here because the savegame directory is not available
+    -- at construction time (RWE pattern).
+    if not self.layoutLoaded then
+        self.layoutLoaded = true
+        self:loadLayout()
+    end
+
     self:drawFlash()
 
-    if not self.settings.enabled or not self.settings.hudEnabled then return end
+    -- BUILD 19:38: edit mode paints regardless of the enabled/hudEnabled gates -
+    -- the escape hatch every suite panel has, so a hidden chip can be found and
+    -- placed during suite layout edit.
+    if (not self.settings.enabled or not self.settings.hudEnabled) and not self.editMode then return end
 
     local C      = FuelConstants.HUD
     local price  = self.priceEngine:getDisplayPrice()
@@ -83,6 +196,17 @@ function FuelHUD:draw()
     if self.overlay then
         setOverlayColor(self.overlay, COLOR.bg[1], COLOR.bg[2], COLOR.bg[3], COLOR.bg[4])
         renderOverlay(self.overlay, self.posX, self.posY, C.WIDTH, C.HEIGHT)
+    end
+
+    -- BUILD 19:38: suite orange edit chrome (COLOR_EDIT_BORDER family) while the
+    -- suite layout edit is on - pulsing border, same vocabulary as every panel.
+    if self.editMode and self.overlay then
+        local bw = 0.002
+        setOverlayColor(self.overlay, 1.00, 0.60, 0.10, 0.90)
+        renderOverlay(self.overlay, self.posX, self.posY + C.HEIGHT - bw, C.WIDTH, bw)
+        renderOverlay(self.overlay, self.posX, self.posY, C.WIDTH, bw)
+        renderOverlay(self.overlay, self.posX, self.posY, bw, C.HEIGHT)
+        renderOverlay(self.overlay, self.posX + C.WIDTH - bw, self.posY, bw, C.HEIGHT)
     end
 
     -- Label
@@ -168,4 +292,16 @@ function FuelHUD:delete()
         self.overlay = nil
     end
     self.initialized = false
+end
+
+-- =========================================================
+-- BUILD 17:57 + ATTN 18:02 (hot-reload guide Part 2): force-patch the live
+-- instance after a Ctrl+R reload - mission.fuelCostsManager published in src/main.lua; holds .hud.
+if g_currentMission ~= nil and g_currentMission.fuelCostsManager ~= nil and g_currentMission.fuelCostsManager.hud ~= nil then
+    local inst = g_currentMission.fuelCostsManager.hud
+    for k, v in pairs(FuelHUD) do
+        if type(v) == "function" then
+            inst[k] = v
+        end
+    end
 end

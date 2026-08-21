@@ -7,8 +7,18 @@
 -- Author: TisonK
 -- =========================================================
 
-local modDirectory = g_currentModDirectory
-local modName      = g_currentModName
+-- Hot-reload safety (proven live 2026-08-21 20:41 and 20:44: re-source died at
+-- the first source() concat): g_currentModDirectory/g_currentModName are only
+-- set during the initial mod load pass and are nil on a live re-source. Latch
+-- into module globals on first load, and fall back to g_modsDirectory plus the
+-- known loose-folder name for a live session whose boot predates the latch
+-- (g_modsDirectory is engine-provided and already used live by CsRfPdaGuest).
+FcModDirectory = FcModDirectory
+    or g_currentModDirectory
+    or (g_modsDirectory ~= nil and (g_modsDirectory .. "FS25_FuelCosts/") or nil)
+FcModName      = FcModName or g_currentModName or "FS25_FuelCosts"
+local modDirectory = FcModDirectory
+local modName      = FcModName
 
 -- -------------------------------------------------------
 -- Phase 1 — Utilities & Config
@@ -62,6 +72,10 @@ end
 -- -------------------------------------------------------
 local function load(mission)
     if mission.cancelLoading then return end
+    -- Reload safety: a re-sourced copy of this file stacks another prepended
+    -- load hook whose local fcm is nil. Resolve the live manager first so a
+    -- stacked copy adopts it instead of creating a second manager.
+    fcm = g_FuelCostsManager or mission.fuelCostsManager or fcm
     if fcm == nil then
         fcm = FuelCostsManager.new()
         getfenv(0)["g_FuelCostsManager"] = fcm
@@ -74,6 +88,11 @@ end
 -- -------------------------------------------------------
 local function loadedMission(mission, node)
     if not isEnabled() or mission.cancelLoading then return end
+    -- Reload safety: stacked copies of this hook must not init/register twice
+    -- for the same mission. The flag lives on the manager, which is discarded
+    -- on mission delete, so the next real mission load initializes normally.
+    if fcm.__missionInitDone then return end
+    fcm.__missionInitDone = true
     fcm:init()
 
     -- Bedrock bridges (delegate-when-present; each no-ops if its bedrock mod is
@@ -158,15 +177,34 @@ end
 -- -------------------------------------------------------
 -- Mouse event handler — settings panel eats input when open
 -- -------------------------------------------------------
-local fcMouseHandler = {}
-function fcMouseHandler:mouseEvent(posX, posY, isDown, isUp, button, eventUsed)
-    if fcm and fcm.settingsPanel and fcm.settingsPanel:isOpen() then
-        local consumed = fcm.settingsPanel:onMouseEvent(posX, posY, isDown, isUp, button, eventUsed)
+-- Reload-safe (hot-reload law): the handler table is a module global so a
+-- re-source rebinds mouseEvent on the SAME registered table, and the manager is
+-- resolved live on every event instead of captured. The old shape captured the
+-- local fcm as an upvalue - a re-sourced copy holds fcm = nil forever, which is
+-- why the 19:38 suite-edit drag never reached FuelHUD (orange chrome, no move).
+-- Registration runs once per game session, guarded by a module-global flag.
+FcMouseHandler = FcMouseHandler or {}
+function FcMouseHandler:mouseEvent(posX, posY, isDown, isUp, button, eventUsed)
+    local mgr = g_FuelCostsManager
+        or (g_currentMission ~= nil and g_currentMission.fuelCostsManager or nil)
+    if mgr == nil then return eventUsed end
+    if mgr.settingsPanel and mgr.settingsPanel:isOpen() then
+        local consumed = mgr.settingsPanel:onMouseEvent(posX, posY, isDown, isUp, button, eventUsed)
+        return consumed or eventUsed
+    end
+    -- BUILD 19:38: route mouse to the HUD while suite layout edit is on (drag to
+    -- move). The settings-panel path above keeps priority when it is open.
+    if mgr.hud and mgr.hud.editMode and mgr.hud.onMouseEvent then
+        local consumed = mgr.hud:onMouseEvent(posX, posY, isDown, isUp, button)
         return consumed or eventUsed
     end
     return eventUsed
 end
-addModEventListener(fcMouseHandler)
+if not FcMouseHandlerRegistered then
+    FcMouseHandlerRegistered = true
+    addModEventListener(FcMouseHandler)
+end
+FuelLogger.info("Mouse routing bound (reload-safe, live-resolved manager)")
 
 -- -------------------------------------------------------
 -- Input action registration — Shift+F opens settings panel
