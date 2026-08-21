@@ -16,6 +16,7 @@ local modName      = g_currentModName
 source(modDirectory .. "src/utils/Logger.lua")
 source(modDirectory .. "src/config/Constants.lua")
 source(modDirectory .. "src/config/SettingsSchema.lua")
+source(modDirectory .. "src/integrations/OptionScalingResolver.lua")
 
 -- -------------------------------------------------------
 -- Phase 2 — Settings
