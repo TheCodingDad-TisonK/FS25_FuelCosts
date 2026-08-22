@@ -9,10 +9,10 @@
 -- =========================================================
 
 ---@class FuelSettingsPanel
-FuelSettingsPanel = {}
+FuelSettingsPanel = FuelSettingsPanel or {}
 local FuelSettingsPanel_mt = Class(FuelSettingsPanel)
 
-local FC_MOD_NAME = g_currentModName
+local FC_MOD_NAME = (FcModName or g_currentModName)
 
 local function tr(key, fallback)
     local modEnv = g_modEnvironments and g_modEnvironments[FC_MOD_NAME]
@@ -159,7 +159,7 @@ function FuelSettingsPanel.new(manager)
     self.manager      = manager
     self.fillOverlay  = nil
     self.isVisible    = false
-    local mod = g_modManager and g_modManager:getModByName(g_currentModName)
+    local mod = g_modManager and g_modManager:getModByName((FcModName or g_currentModName))
     self.modVersion   = "v" .. (mod and mod.version or "?")
     self.activeTab    = TAB_FUEL
     self.mouseX       = 0

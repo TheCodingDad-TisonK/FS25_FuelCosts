@@ -208,7 +208,7 @@ end
 FuelLogger.info("Mouse routing bound (reload-safe, live-resolved manager)")
 
 -- -------------------------------------------------------
--- Input action registration - Shift+F opens settings panel
+-- Input action registration - FC_OPEN_SETTINGS opens settings panel (player-assigned key)
 -- Hook PlayerInputComponent.registerActionEvents so our
 -- action is registered whenever the player spawns/respawns.
 -- -------------------------------------------------------
@@ -239,7 +239,7 @@ if PlayerInputComponent and PlayerInputComponent.registerActionEvents then
         if ok and evId then
             g_FuelCostsManager.settingsPanelEventId = evId
             g_inputBinding:setActionEventTextVisibility(evId, false)
-            FuelLogger.info("Settings panel (Shift+F) registered in PLAYER context")
+            FuelLogger.info("Settings panel (FC_OPEN_SETTINGS) registered in PLAYER context")
         end
 
         g_inputBinding:endActionEventsModification()
@@ -280,7 +280,7 @@ if InputBinding and InputBinding.endActionEventsModification then
         if ok and evId then
             g_FuelCostsManager.vehicleSettingsPanelEventId = evId
             binding:setActionEventTextVisibility(evId, false)
-            FuelLogger.info("Settings panel (Shift+F) registered in VEHICLE context")
+            FuelLogger.info("Settings panel (FC_OPEN_SETTINGS) registered in VEHICLE context")
         end
 
         binding:endActionEventsModification()

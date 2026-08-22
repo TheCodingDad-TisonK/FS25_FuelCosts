@@ -5,7 +5,7 @@
 -- =========================================================
 
 ---@class FuelSettingsManager
-FuelSettingsManager = {}
+FuelSettingsManager = FuelSettingsManager or {}
 FuelSettingsManager.__index = FuelSettingsManager
 
 function FuelSettingsManager.new(settings)
