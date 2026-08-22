@@ -11,7 +11,7 @@
 -- -------------------------------------------------------
 -- FuelPriceSyncEvent  (Server → Clients)
 -- -------------------------------------------------------
-FuelPriceSyncEvent = {}
+FuelPriceSyncEvent = FuelPriceSyncEvent or {}
 local FuelPriceSyncEvent_mt = Class(FuelPriceSyncEvent, Event)
 InitEventClass(FuelPriceSyncEvent, "FuelPriceSyncEvent")
 
@@ -54,7 +54,7 @@ end
 -- -------------------------------------------------------
 -- FuelSettingChangeEvent  (Client → Server)
 -- -------------------------------------------------------
-FuelSettingChangeEvent = {}
+FuelSettingChangeEvent = FuelSettingChangeEvent or {}
 local FuelSettingChangeEvent_mt = Class(FuelSettingChangeEvent, Event)
 InitEventClass(FuelSettingChangeEvent, "FuelSettingChangeEvent")
 
@@ -102,7 +102,7 @@ end
 -- -------------------------------------------------------
 -- FuelSettingSyncEvent  (Server → Clients)
 -- -------------------------------------------------------
-FuelSettingSyncEvent = {}
+FuelSettingSyncEvent = FuelSettingSyncEvent or {}
 local FuelSettingSyncEvent_mt = Class(FuelSettingSyncEvent, Event)
 InitEventClass(FuelSettingSyncEvent, "FuelSettingSyncEvent")
 
@@ -135,7 +135,7 @@ end
 -- -------------------------------------------------------
 -- FuelRequestSyncEvent  (Client → Server)
 -- -------------------------------------------------------
-FuelRequestSyncEvent = {}
+FuelRequestSyncEvent = FuelRequestSyncEvent or {}
 local FuelRequestSyncEvent_mt = Class(FuelRequestSyncEvent, Event)
 InitEventClass(FuelRequestSyncEvent, "FuelRequestSyncEvent")
 

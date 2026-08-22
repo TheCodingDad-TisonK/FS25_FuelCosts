@@ -3,7 +3,7 @@
 -- =========================================================
 
 ---@class FuelLogger
-FuelLogger = {}
+FuelLogger = FuelLogger or {}
 
 local PREFIX = "[FuelCosts]"
 

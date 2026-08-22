@@ -18,7 +18,7 @@
 -- =========================================================
 
 ---@class FuelPriceEngine
-FuelPriceEngine = {}
+FuelPriceEngine = FuelPriceEngine or {}
 FuelPriceEngine.__index = FuelPriceEngine
 
 function FuelPriceEngine.new(settings)

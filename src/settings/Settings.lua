@@ -3,7 +3,7 @@
 -- =========================================================
 
 ---@class FuelSettings
-FuelSettings = {}
+FuelSettings = FuelSettings or {}
 FuelSettings.__index = FuelSettings
 
 function FuelSettings.new()

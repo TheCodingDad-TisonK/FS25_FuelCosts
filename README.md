@@ -30,7 +30,7 @@ One mechanic. Universal impact. No new systems to learn.
 | Live price HUD with colour-coded status and trend indicator | ✅ |
 | Fill cost notification on refuel | ✅ |
 | Configurable base price, volatility, and difficulty | ✅ |
-| In-game settings panel (Shift+F) | ✅ |
+| In-game settings panel (player-assigned key) | ✅ |
 | Server-authoritative pricing in multiplayer | ✅ |
 | Price state persists across save/load | ✅ |
 | Console commands for debugging and price override | ✅ |
@@ -73,7 +73,7 @@ The HUD hides automatically when any game menu is open.
 
 ## In-Game Settings Panel
 
-Press **Shift+F** (or the bound key) to open the settings panel. It has two tabs:
+Open the settings panel with the *Open Fuel Settings* action (no default key - assign one under Options > Controls > Mods). It has two tabs:
 
 - **Fuel** — live dashboard showing current price, market shock status, season modifier, volatility, and a force-tick button (admin/SP only)
 - **Settings** — toggle and configure all options without leaving the game

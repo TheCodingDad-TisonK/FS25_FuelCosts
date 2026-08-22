@@ -22,7 +22,7 @@
 -- real global here, kept as the fallback).
 -- =========================================================
 
-FuelNetworkSyncBridge = {}
+FuelNetworkSyncBridge = FuelNetworkSyncBridge or {}
 
 -- registerModule id + wire channel. Follows the MarketDynamics precedent
 -- (registerModule id FS25_<Mod>, channel <Mod>_Sync). Provisional pending the lock;

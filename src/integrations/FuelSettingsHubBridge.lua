@@ -19,7 +19,7 @@
 -- effect). Our own FS25_FuelCosts.xml stays the source of truth (selfPersisted).
 -- =========================================================
 
-FuelSettingsHubBridge = {}
+FuelSettingsHubBridge = FuelSettingsHubBridge or {}
 
 -- FarmTablet renders the label string as-is (no l10n lookup on its end), so resolve
 -- each setting's human-readable name here from its "<uiId>_short" key, falling back

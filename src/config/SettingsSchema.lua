@@ -6,7 +6,7 @@
 -- and the in-game UI generation.
 -- =========================================================
 
-FuelSettingsSchema = {}
+FuelSettingsSchema = FuelSettingsSchema or {}
 
 FuelSettingsSchema.definitions = {
     -- { id, type, default, uiId, localOnly }
