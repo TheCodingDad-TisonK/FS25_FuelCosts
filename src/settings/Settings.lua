@@ -25,7 +25,20 @@ function FuelSettings:validate()
     self.hudPosition    = math.max(1, math.min(4, self.hudPosition or 1))
 end
 
+FuelSettings.SPINE_PRICE_MULT = {
+    id   = "fc_priceMultiplier",
+    dial = "economy",
+    base = 1.0,
+}
+
 function FuelSettings:getDifficultyMultiplier()
+    if OptionScalingResolver ~= nil then
+        local hub = (g_currentMission ~= nil and g_currentMission.settingsHub) or g_settingsHub
+        local profile = OptionScalingResolver.readProfile(hub)
+        if profile ~= nil then
+            return OptionScalingResolver.resolve(FuelSettings.SPINE_PRICE_MULT, profile)
+        end
+    end
     local key = FuelSettingsSchema.DIFFICULTY_MAP[self.difficulty] or "REALISTIC"
     return FuelConstants.DIFFICULTY[key] or 1.0
 end
