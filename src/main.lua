@@ -1,3 +1,12 @@
+-- 2026-08-22 (Wizard): with MasterHUD installed this mod's own HUD hide/move keys must not
+-- merely be inert, they must not REGISTER at all - that is what removes their rows from the
+-- F1 legend and the Controls list. Probed on TaxMod first: skipping registration does remove
+-- the row, so the pattern is used suite-wide. Only HUD hide/move actions are gated; every
+-- other action this mod registers is untouched.
+local function __rfMhOwnsHudKeys()
+    return ((g_currentMission ~= nil and g_currentMission.masterHUD) or g_masterHUD) ~= nil
+end
+
 -- =========================================================
 -- FS25 Realistic Fuel Costs - Entry Point
 -- =========================================================
@@ -26,7 +35,6 @@ local modName      = FcModName
 source(modDirectory .. "src/utils/Logger.lua")
 source(modDirectory .. "src/config/Constants.lua")
 source(modDirectory .. "src/config/SettingsSchema.lua")
-source(modDirectory .. "src/integrations/OptionScalingResolver.lua")
 
 -- -------------------------------------------------------
 -- Phase 2 - Settings
@@ -135,6 +143,33 @@ end
 -- -------------------------------------------------------
 Mission00.load                  = Utils.prependedFunction(Mission00.load,                  load)
 Mission00.loadMission00Finished = Utils.appendedFunction(Mission00.loadMission00Finished,  loadedMission)
+
+-- ---------------------------------------------------------
+-- Realistic Farming Control Center: publish a runnable delegate.
+--
+-- FC_TOGGLE_HUD and FC_HUD_EDIT are deliberately absent: MasterHUD owns the
+-- suite HUD keys, and both keep their directory row and live key readout here.
+-- ---------------------------------------------------------
+local function registerControlCenterActions()
+    local registry = g_currentMission ~= nil and g_currentMission.rfActionRegistry or nil
+    if registry == nil then return end
+
+    registry.registerAction({
+        action     = "FC_OPEN_SETTINGS",
+        button     = "Open",
+        -- The settings panel draws on the HUD, so the dialog steps aside.
+        closeFirst = true,
+        run = function()
+            local mgr = g_FuelCostsManager
+            if mgr ~= nil and mgr.onOpenSettingsInput ~= nil then
+                mgr:onOpenSettingsInput()
+            end
+        end,
+    })
+end
+
+Mission00.loadMission00Finished = Utils.appendedFunction(
+    Mission00.loadMission00Finished, registerControlCenterActions)
 FSBaseMission.delete            = Utils.prependedFunction(FSBaseMission.delete,            unload)
 
 FSBaseMission.update = Utils.appendedFunction(FSBaseMission.update, function(mission, dt)
@@ -240,6 +275,38 @@ if PlayerInputComponent and PlayerInputComponent.registerActionEvents then
             g_FuelCostsManager.settingsPanelEventId = evId
             g_inputBinding:setActionEventTextVisibility(evId, false)
             FuelLogger.info("Settings panel (FC_OPEN_SETTINGS) registered in PLAYER context")
+        end
+
+        -- Per-mod HUD hide / move, so Fuel works standalone without MasterHUD.
+        -- Both callbacks stand down on their own when MasterHUD is installed.
+        local tOk, tId = false, nil
+        if not __rfMhOwnsHudKeys() then
+            local tOk, tId = g_inputBinding:registerActionEvent(
+                InputAction.FC_TOGGLE_HUD,
+                g_FuelCostsManager,
+                g_FuelCostsManager.onToggleHUDInput,
+                false, true, false, true
+            )
+        end
+        if tOk and tId then
+            g_inputBinding:setActionEventText(tId,
+                (g_i18n ~= nil and g_i18n:getText("input_FC_TOGGLE_HUD")) or "Toggle Fuel HUD")
+            FuelLogger.info("HUD toggle (FC_TOGGLE_HUD) registered in PLAYER context")
+        end
+
+        local eOk, eId = false, nil
+        if not __rfMhOwnsHudKeys() then
+            local eOk, eId = g_inputBinding:registerActionEvent(
+                InputAction.FC_HUD_EDIT,
+                g_FuelCostsManager,
+                g_FuelCostsManager.onHUDEditInput,
+                false, true, false, true
+            )
+        end
+        if eOk and eId then
+            g_inputBinding:setActionEventText(eId,
+                (g_i18n ~= nil and g_i18n:getText("input_FC_HUD_EDIT")) or "Move Fuel HUD")
+            FuelLogger.info("HUD move/edit (FC_HUD_EDIT) registered in PLAYER context")
         end
 
         g_inputBinding:endActionEventsModification()
