@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to FS25_FuelCosts will be documented in this file.
 
@@ -15,6 +15,7 @@ the repo's git history and README.
 
 ### Added
 - Changelog file established (suite ruling 2026-08-22).
+- Playtest fixes: FC_TOGGLE_HUD (RShift+U) and FC_HUD_EDIT (RShift+V) chords, manager/HUD/settings, vehicle input hook.
 - Control Center action: `FC_OPEN_SETTINGS` opens fuel cost settings from the suite Control Center (requires SettingsHub).
 
 ## [1.0.0.1] - 2026-08-23

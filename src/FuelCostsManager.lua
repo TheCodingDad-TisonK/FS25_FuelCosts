@@ -241,6 +241,31 @@ end
 -- Settings panel
 -- -------------------------------------------------------
 
+function FuelCostsManager:onToggleHUDInput()
+    -- MasterHUD takeover: with MasterHUD installed it owns the suite-wide hide/move
+    -- binds, so this per-mod key is deliberately inert. Standalone, it runs.
+    if ((g_currentMission ~= nil and g_currentMission.masterHUD) or g_masterHUD) ~= nil then
+        return
+    end
+    if self.settings == nil then return end
+    self.settings.hudEnabled = not self.settings.hudEnabled
+    if self.hud ~= nil and self.hud.flash ~= nil then
+        self.hud:flash(self.settings.hudEnabled and "Fuel HUD shown" or "Fuel HUD hidden",
+            {0.55, 0.80, 0.95, 1.0}, 2.0)
+    end
+end
+
+function FuelCostsManager:onHUDEditInput()
+    -- MasterHUD takeover: with MasterHUD installed it owns the suite-wide hide/move
+    -- binds, so this per-mod key is deliberately inert. Standalone, it runs.
+    if ((g_currentMission ~= nil and g_currentMission.masterHUD) or g_masterHUD) ~= nil then
+        return
+    end
+    local hud = self.hud
+    if hud == nil then return end
+    if hud.editMode then hud:exitEditMode() else hud:enterEditMode() end
+end
+
 function FuelCostsManager:onOpenSettingsInput()
     if self.settingsPanel then
         self.settingsPanel:toggle()

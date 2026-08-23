@@ -202,6 +202,12 @@
             <id>Buka pengaturan biaya bahan bakar</id>
             <vi>Mở cài đặt chi phí nhiên liệu</vi>
         </text>
+        <text name="input_FC_TOGGLE_HUD">
+            <en>Toggle Fuel HUD</en>
+        </text>
+        <text name="input_FC_HUD_EDIT">
+            <en>Move Fuel HUD</en>
+        </text>
     </l10n>
     <extraSourceFiles>
         <sourceFile filename="src/main.lua" />
@@ -209,9 +215,17 @@
 
     <actions>
         <action name="FC_OPEN_SETTINGS" category="ONFOOT" />
+        <action name="FC_TOGGLE_HUD" category="ONFOOT VEHICLE" />
+        <action name="FC_HUD_EDIT" category="ONFOOT VEHICLE" />
     </actions>
 
     <inputBinding>
         <actionBinding action="FC_OPEN_SETTINGS" />
+        <actionBinding action="FC_TOGGLE_HUD">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_rshift KEY_u" />
+        </actionBinding>
+        <actionBinding action="FC_HUD_EDIT">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_rshift KEY_v" />
+        </actionBinding>
     </inputBinding>
 </modDesc>

@@ -135,9 +135,44 @@ function FuelHUD:exitEditMode()
     self:saveLayout()
 end
 
+-- 2026-08-22 (Wizard "fix the bug so they save"): HUD layout now persists in
+-- modSettings, not the savegame directory.
+--
+-- The old path wrote <savegameDirectory>/FS25_FuelCosts_hud.xml. That file is present in savegame0,
+-- 5, 6 and 8 but never appeared in savegame1, so the write is not reliable in the
+-- savegame directory. SoilFertilizer already persists its HUD under modSettings and
+-- its hud.xml carried the live position, scale and width through every save and
+-- restart, so that is the pattern that demonstrably survives and this now matches it.
+--
+-- modSettings is also global rather than per-savegame, which is the right scope for a
+-- HUD layout: the player arranges their screen once, not once per save.
+-- getUserProfileAppPath and createFolder are engine functions, both already used by
+-- SoilFertilizer, FarmTablet and MarketDynamics in this suite.
 function FuelHUD:getLayoutPath()
-    if g_currentMission and g_currentMission.missionInfo
-    and g_currentMission.missionInfo.savegameDirectory then
+    local ok, profilePath = pcall(getUserProfileAppPath)
+    if ok and profilePath ~= nil and profilePath ~= "" then
+        if profilePath:sub(-1) ~= "/" and profilePath:sub(-1) ~= "\\" then
+            profilePath = profilePath .. "/"
+        end
+        local base = profilePath .. "modSettings/FS25_FuelCosts"
+        createFolder(profilePath .. "modSettings")
+        createFolder(base)
+        createFolder(base .. "/HUD")
+        return base .. "/HUD/hud.xml"
+    end
+    -- Dedicated server or any environment with no user profile path: keep the old
+    -- savegame-dir file rather than losing the layout entirely.
+    if g_currentMission ~= nil and g_currentMission.missionInfo ~= nil
+    and g_currentMission.missionInfo.savegameDirectory ~= nil then
+        return g_currentMission.missionInfo.savegameDirectory .. "/FS25_FuelCosts_hud.xml"
+    end
+end
+
+--- The pre-2026-08-22 location. Read once on load so an arrangement saved before the
+--- move is migrated instead of lost; the next save writes it to the new path.
+function FuelHUD:getLegacyLayoutPath()
+    if g_currentMission ~= nil and g_currentMission.missionInfo ~= nil
+    and g_currentMission.missionInfo.savegameDirectory ~= nil then
         return g_currentMission.missionInfo.savegameDirectory .. "/FS25_FuelCosts_hud.xml"
     end
 end
@@ -158,7 +193,11 @@ end
 
 function FuelHUD:loadLayout()
     local path = self:getLayoutPath()
-    if not path or not fileExists(path) then return end
+    if path == nil or not fileExists(path) then
+        -- First run after the move: migrate the old savegame-dir sidecar.
+        path = self:getLegacyLayoutPath()
+        if path == nil or not fileExists(path) then return end
+    end
     local xml = XMLFile.load("fc_hud", path)
     if xml then
         self.posX      = xml:getFloat("hudLayout.posX", self.posX)
