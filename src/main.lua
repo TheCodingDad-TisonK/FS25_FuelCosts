@@ -147,8 +147,10 @@ Mission00.loadMission00Finished = Utils.appendedFunction(Mission00.loadMission00
 -- ---------------------------------------------------------
 -- Realistic Farming Control Center: publish a runnable delegate.
 --
--- FC_TOGGLE_HUD and FC_HUD_EDIT are deliberately absent: MasterHUD owns the
--- suite HUD keys, and both keep their directory row and live key readout here.
+-- FC_HUD_EDIT stays button-less (moving the panel needs the in-world drag).
+-- FC_TOGGLE_HUD now grows a hide/show button below: the physical key stays gated
+-- to MasterHUD, but a per-mod hide is reachable from the Control Center. Both keep
+-- their directory row and live key readout here.
 -- ---------------------------------------------------------
 local function registerControlCenterActions()
     local registry = g_currentMission ~= nil and g_currentMission.rfActionRegistry or nil
@@ -164,6 +166,27 @@ local function registerControlCenterActions()
             if mgr ~= nil and mgr.onOpenSettingsInput ~= nil then
                 mgr:onOpenSettingsInput()
             end
+        end,
+    })
+
+    -- Per-mod HUD hide/show. Flips settings.hudEnabled (the mod's own visibility
+    -- truth, honoured by the draw path under MasterHUD), mirroring the FC_TOGGLE_HUD
+    -- key minus the MasterHUD gate. Live "Hide"/"Show" caption.
+    registry.registerAction({
+        action = "FC_TOGGLE_HUD",
+        button = function()
+            local s = g_FuelCostsManager ~= nil and g_FuelCostsManager.settings or nil
+            return (s ~= nil and s.hudEnabled) and "Hide" or "Show"
+        end,
+        run = function()
+            local mgr = g_FuelCostsManager
+            if mgr == nil or mgr.settings == nil then return end
+            mgr.settings.hudEnabled = not mgr.settings.hudEnabled
+            if mgr.hud ~= nil and mgr.hud.flash ~= nil then
+                mgr.hud:flash(mgr.settings.hudEnabled and "Fuel HUD shown" or "Fuel HUD hidden",
+                    {0.55, 0.80, 0.95, 1.0}, 2.0)
+            end
+            return mgr.settings.hudEnabled and "Fuel HUD shown" or "Fuel HUD hidden"
         end,
     })
 end
